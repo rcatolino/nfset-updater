@@ -1,9 +1,11 @@
 mod schema;
+mod config;
 
 use anyhow::Result;
 use curl::easy::Easy;
 use schema::{Prefix, Response};
 use serde_json;
+use std::{env, thread, time};
 
 const API_URL: &'static str = "https://bgp.he.net/super-lg/report/api/v1/prefixes/originated";
 
@@ -21,13 +23,20 @@ fn get_prefixes(asn: &str) -> Result<Vec<Prefix>> {
         tx.perform()?;
     }
 
-    println!("api response {}", std::str::from_utf8(buffer.as_slice())?);
     let resp: Response = serde_json::from_slice(buffer.as_slice())?;
     Ok(resp.prefixes)
 }
 
 fn main() -> Result<()> {
-    let p = get_prefixes("3215")?;
-    println!("{:?}", p);
+    let sets = config::parse(env::args().nth(1).as_deref())?;
+    for set in sets {
+        println!("Enumerating prefixes in set '{}'", set.name);
+        for as_number in set.asns {
+            for prefix in get_prefixes(&as_number)? {
+                println!("{}:{}: {}", set.name, as_number, prefix.prefix);
+            }
+            thread::sleep(time::Duration::from_secs(5));
+        }
+    }
     Ok(())
 }
