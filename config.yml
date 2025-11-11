@@ -1,4 +1,7 @@
-- name: "residential-fr"
+- name_ipv4: "residential_fr_ipv4"
+  name_ipv6: "residential_fr_ipv6"
+  family: "inet"
+  table: "filter"
   asns:
     - "3215"  # orange (ipv4)
     - "5410"  # bouygues
@@ -7,7 +10,10 @@
     - "15557" # sfr
     - "51207" # free mobile
 
-- name: "naughty"
+- name_ipv4: "naughty_ipv4"
+  name_ipv6: "naughty_ipv6"
+  family: "inet"
+  table: "filter"
   asns:
     - "10439"
     - "10439"
