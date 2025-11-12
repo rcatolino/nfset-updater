@@ -1,11 +1,13 @@
 mod config;
+mod prefix_iterator;
 mod schema;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use curl::easy::Easy;
+use prefix_iterator::PrefixBatchIterator;
 use schema::{Prefix, Response};
 use serde_json;
-use std::net;
+use std::ffi::OsStr;
 use std::process::Command;
 use std::{env, thread, time};
 
@@ -25,28 +27,27 @@ fn get_prefixes(asn: &str) -> Result<Vec<Prefix>> {
         tx.perform()?;
     }
 
-    let resp: Response = serde_json::from_slice(buffer.as_slice())?;
+    let resp: Response =
+        serde_json::from_slice(buffer.as_slice()).with_context(|| "Parsing GET prefix response")?;
     Ok(resp.prefixes)
 }
 
-fn is_ipv6(prefix: &str) -> Result<bool> {
-    let ip = prefix
-        .splitn(2, "/")
-        .nth(0)
-        .ok_or(anyhow::anyhow!("Missing netmask in prefix {}", prefix))?;
-    let parsed: net::IpAddr = ip.parse()?;
-    Ok(parsed.is_ipv6())
-}
+fn update_set(family: &str, table: &str, name: &str, prefixes: &[&str]) -> Result<()> {
+    let prefixes_str = prefixes.join(",");
+    println!(
+        "nftset add to {} {} {}: {}",
+        family, table, name, prefixes_str
+    );
 
-fn update_set(family: &str, table: &str, name: &str, prefix: &str) -> Result<()> {
-    // TODO: batch updates
     let status = Command::new("nft")
         .arg("add")
         .arg("element")
         .arg(family)
         .arg(table)
         .arg(name)
-        .args(["{", prefix, "}"])
+        .arg("{")
+        .arg(prefixes_str)
+        .arg("}")
         .status()?;
 
     if !status.success() {
@@ -67,17 +68,20 @@ fn main() -> Result<()> {
             set.name_ipv4, set.name_ipv6
         );
         for as_number in set.asns {
-            for prefix in get_prefixes(&as_number)? {
-                let set_name = if is_ipv6(prefix.prefix.as_str())? {
+            let prefixes = match get_prefixes(&as_number) {
+                Ok(p) => p,
+                Err(e) => {
+                    println!("Error retrieving prefixes for AS{}: {}", as_number, e);
+                    continue;
+                }
+            };
+            for (batch, is_ipv6) in &mut PrefixBatchIterator::new(prefixes.as_slice()) {
+                let set_name = if is_ipv6 {
                     set.name_ipv6.as_str()
                 } else {
                     set.name_ipv4.as_str()
                 };
-                println!(
-                    "nft add element {} {} {}",
-                    set.table, set_name, prefix.prefix
-                );
-                update_set(&set.family, &set.table, set_name, &prefix.prefix)?
+                update_set(&set.family, &set.table, set_name, batch.as_slice())?
             }
             thread::sleep(time::Duration::from_secs(5));
         }
