@@ -32,11 +32,11 @@ fn get_prefixes(asn: &str) -> Result<Vec<Prefix>> {
     Ok(resp.prefixes)
 }
 
-fn update_set(family: &str, table: &str, name: &str, prefixes: &[&str]) -> Result<()> {
+fn update_set(asn: &str, family: &str, table: &str, name: &str, prefixes: &[&str]) -> Result<()> {
     let prefixes_str = prefixes.join(",");
     println!(
-        "nftset add to {} {} {}: {}",
-        family, table, name, prefixes_str
+        "nfset AS{} add to {} {} {}: {}",
+        asn, family, table, name, prefixes_str
     );
 
     let status = Command::new("nft")
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
                 } else {
                     set.name_ipv4.as_str()
                 };
-                update_set(&set.family, &set.table, set_name, batch.as_slice())?
+                update_set(&as_number, &set.family, &set.table, set_name, batch.as_slice())?
             }
             thread::sleep(time::Duration::from_secs(5));
         }
