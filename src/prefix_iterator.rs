@@ -18,6 +18,10 @@ impl<'a> PrefixBatchIterator<'a> {
 }
 
 fn is_ipv6(prefix: &str) -> Result<bool> {
+    if prefix.ends_with("/0") {
+        return Err(anyhow::anyhow!("Bogus prefix {}", prefix));
+    }
+
     let ip = prefix
         .splitn(2, "/")
         .nth(0)
