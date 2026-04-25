@@ -7,7 +7,6 @@ use curl::easy::Easy;
 use prefix_iterator::PrefixBatchIterator;
 use schema::{Prefix, Response};
 use serde_json;
-use std::ffi::OsStr;
 use std::process::Command;
 use std::{env, thread, time};
 
